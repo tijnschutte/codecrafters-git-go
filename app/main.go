@@ -52,7 +52,7 @@ func catFile(objectHash string) (string, error) {
 	if len(objectHash) != 40 {
 		return "", errors.New("object's hash must have 40 characters")
 	}
-	path := ".git/objects/" + objectHash[:2] + "/" + objectHash[2:]
+	path := fmt.Sprintf(".git/objects/%s/%s", sha[:2], sha[2:])
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("file not found: %s", path)
 	}

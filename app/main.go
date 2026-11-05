@@ -2,10 +2,13 @@ package main
 
 import (
 	"compress/zlib"
+	"crypto/sha1"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -35,21 +38,36 @@ func main() {
 			fmt.Fprintf(os.Stderr, "usage: mygit cat-file -p <blob_sha>\n")
 			os.Exit(1)
 		}
-		hash := os.Args[3]
-		content, err := catFile(hash)
+		objectHash := os.Args[3]
+		content, err := catFile(objectHash)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 		fmt.Print(content)
+	case "hash-object":
+		file := os.Args[3]
+		data, _ := os.ReadFile(file)
+		obj := fmt.Appendf([]byte("blob "), "%d\x00%s", len(data), data)
+		sum := sha1.Sum(obj)
+		sha := hex.EncodeToString(sum[:])
+
+		path := fmt.Sprintf(".git/objects/%s/%s", sha[:2], sha[2:])
+		os.MkdirAll(filepath.Dir(path), 0o755)
+		f, _ := os.Create(path)
+		defer f.Close()
+		c := zlib.NewWriter(f)
+		defer c.Close()
+		c.Write(obj)
+		fmt.Println(sha)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command %s\n", command)
 		os.Exit(1)
 	}
 }
 
-func catFile(objectHash string) (string, error) {
-	if len(objectHash) != 40 {
+func catFile(sha string) (string, error) {
+	if len(sha) != 40 {
 		return "", errors.New("object's hash must have 40 characters")
 	}
 	path := fmt.Sprintf(".git/objects/%s/%s", sha[:2], sha[2:])

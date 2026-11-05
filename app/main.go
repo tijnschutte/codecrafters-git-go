@@ -35,23 +35,10 @@ func main() {
 			fmt.Fprintf(os.Stderr, "usage: mygit cat-file -p <blob_sha>\n")
 			os.Exit(1)
 		}
-		objectHash := os.Args[3]
-		if len(objectHash) != 40 {
-			fmt.Fprintf(os.Stderr, "Object's hash must have 40 characters")
-			os.Exit(1)
-		}
-		path := ".git/objects/" + objectHash[:2] + "/" + objectHash[2:]
-		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-			fmt.Fprintf(os.Stderr, "Content not found")
-			os.Exit(1)
-		}
-		file, _ := os.Open(path)
-		c, _ := zlib.NewReader(file)
-		defer c.Close()
-		data, _ := io.ReadAll(c)
-		_, content, ok := strings.Cut(strings.TrimPrefix(string(data), "blob "), "\x00")
-		if !ok {
-			fmt.Fprintf(os.Stderr, "Content not found")
+		hash := os.Args[3]
+		content, err := catFile(hash)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 		fmt.Print(content)
@@ -59,4 +46,38 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Unknown command %s\n", command)
 		os.Exit(1)
 	}
+}
+
+func catFile(objectHash string) (string, error) {
+	if len(objectHash) != 40 {
+		return "", errors.New("object's hash must have 40 characters")
+	}
+	path := ".git/objects/" + objectHash[:2] + "/" + objectHash[2:]
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("file not found: %s", path)
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	c, err := zlib.NewReader(file)
+	if err != nil {
+		return "", err
+	}
+	defer c.Close()
+
+	data, err := io.ReadAll(c)
+	if err != nil {
+		return "", err
+	}
+
+	_, content, ok := strings.Cut(strings.TrimPrefix(string(data), "blob "), "\x00")
+	if !ok {
+		return "", errors.New("could not read file content")
+	}
+
+	return content, nil
 }
